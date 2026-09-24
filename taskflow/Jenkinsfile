@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = 'taskflow'
+        IMAGE_NAME = 'taskflow'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        HELM_RELEASE = 'taskflow'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir('taskflow') {
+                    sh 'python3 -m pip install --upgrade pip'
+                    sh 'python3 -m pip install -r requirements.txt'
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                dir('taskflow') {
+                    sh 'pytest -q'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('taskflow') {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+
+        stage('Lint Helm Chart') {
+            steps {
+                sh 'helm lint taskflow/helm/taskflow'
+                sh 'helm template taskflow taskflow/helm/taskflow >/dev/null'
+            }
+        }
+
+        stage('Deploy to Kind') {
+            steps {
+                sh 'kubectl apply -f taskflow/k8s/namespace.yaml'
+                sh "helm upgrade --install ${HELM_RELEASE} taskflow/helm/taskflow --namespace taskflow --create-namespace --set image.repository=${IMAGE_NAME} --set image.tag=${IMAGE_TAG} --set app.name=${APP_NAME}"
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh 'kubectl rollout status deployment/taskflow -n taskflow --timeout=180s'
+                sh 'kubectl get pods -n taskflow'
+                sh 'kubectl get svc -n taskflow'
+            }
+        }
+    }
+}
