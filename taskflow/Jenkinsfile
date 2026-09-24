@@ -6,6 +6,7 @@ pipeline {
         IMAGE_NAME = 'taskflow'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         HELM_RELEASE = 'taskflow'
+        PYTHON = 'C:\\Users\\Naveen Gadde\\AppData\\Local\\Programs\\Python\\Python313\\python.exe'
     }
 
     stages {
@@ -18,8 +19,8 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 dir('taskflow') {
-                    bat 'python -m pip install --upgrade pip'
-                    bat 'python -m pip install -r requirements.txt'
+                    bat "\"${PYTHON}\" -m pip install --upgrade pip"
+                    bat "\"${PYTHON}\" -m pip install -r requirements.txt"
                 }
             }
         }
@@ -27,7 +28,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('taskflow') {
-                    bat 'pytest -q'
+                    bat "\"${PYTHON}\" -m pytest -q"
                 }
             }
         }
