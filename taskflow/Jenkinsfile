@@ -6,7 +6,8 @@ pipeline {
         IMAGE_NAME = 'taskflow'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
         HELM_RELEASE = 'taskflow'
-        PYTHON = 'C:\\Users\\Naveen Gadde\\AppData\\Local\\Programs\\Python\\Python313\\python.exe'
+        K8S_NAMESPACE = 'taskflow'
+        KIND_CLUSTER_NAME = 'kind'
     }
 
     stages {
@@ -19,8 +20,8 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 dir('taskflow') {
-                    bat "\"${PYTHON}\" -m pip install --upgrade pip"
-                    bat "\"${PYTHON}\" -m pip install -r requirements.txt"
+                    bat 'python -m pip install --upgrade pip'
+                    bat 'python -m pip install -r requirements.txt'
                 }
             }
         }
@@ -28,7 +29,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('taskflow') {
-                    bat "\"${PYTHON}\" -m pytest -q"
+                    bat 'python -m pytest -q'
                 }
             }
         }
@@ -36,7 +37,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('taskflow') {
-                    bat "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    bat "docker build -t %IMAGE_NAME%:%IMAGE_TAG% ."
                 }
             }
         }
@@ -44,22 +45,36 @@ pipeline {
         stage('Lint Helm Chart') {
             steps {
                 bat 'helm lint taskflow\\helm\\taskflow'
-                bat 'helm template taskflow taskflow\\helm\\taskflow > NUL'
+                bat 'helm template %HELM_RELEASE% taskflow\\helm\\taskflow > NUL'
+            }
+        }
+
+        stage('Prepare Kind Cluster') {
+            steps {
+                bat """
+                    kind get clusters 2>NUL | findstr /C:"%KIND_CLUSTER_NAME%" >NUL
+                    if errorlevel 1 (
+                        kind create cluster --name %KIND_CLUSTER_NAME%
+                    )
+                    kind load docker-image %IMAGE_NAME%:%IMAGE_TAG% --name %KIND_CLUSTER_NAME%
+                """
             }
         }
 
         stage('Deploy to Kind') {
             steps {
-                bat 'kubectl apply -f taskflow\\k8s\\namespace.yaml'
-                bat "helm upgrade --install ${HELM_RELEASE} taskflow\\helm\\taskflow --namespace taskflow --create-namespace --set image.repository=${IMAGE_NAME} --set image.tag=${IMAGE_TAG} --set app.name=${APP_NAME}"
+                bat """
+                    kubectl create namespace %K8S_NAMESPACE% --dry-run=client -o yaml | kubectl apply -f -
+                    helm upgrade --install %HELM_RELEASE% taskflow\\helm\\taskflow --namespace %K8S_NAMESPACE% --create-namespace --set image.repository=%IMAGE_NAME% --set image.tag=%IMAGE_TAG% --set app.name=%APP_NAME%
+                """
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                bat 'kubectl rollout status deployment/taskflow -n taskflow --timeout=180s'
-                bat 'kubectl get pods -n taskflow'
-                bat 'kubectl get svc -n taskflow'
+                bat 'kubectl rollout status deployment/%HELM_RELEASE% -n %K8S_NAMESPACE% --timeout=180s'
+                bat 'kubectl get pods -n %K8S_NAMESPACE%'
+                bat 'kubectl get svc -n %K8S_NAMESPACE%'
             }
         }
     }
