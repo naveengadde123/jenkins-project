@@ -8,7 +8,7 @@ pipeline {
         HELM_RELEASE = 'taskflow'
         K8S_NAMESPACE = 'taskflow'
         KIND_CLUSTER_NAME = 'kind'
-        PYTHON_CMD = 'py -3'
+        PYTHON = 'C:\\Users\\Naveen Gadde\\AppData\\Local\\Programs\\Python\\Python313\\python.exe'
     }
 
     stages {
@@ -21,8 +21,8 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 dir('taskflow') {
-                    bat 'py -3 -m pip install --upgrade pip'
-                    bat 'py -3 -m pip install -r requirements.txt'
+                    bat '"%PYTHON%" -m pip install --upgrade pip'
+                    bat '"%PYTHON%" -m pip install -r requirements.txt'
                 }
             }
         }
@@ -30,7 +30,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 dir('taskflow') {
-                    bat 'py -3 -m pytest -q'
+                    bat '"%PYTHON%" -m pytest -q'
                 }
             }
         }
